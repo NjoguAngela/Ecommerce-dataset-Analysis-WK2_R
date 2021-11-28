@@ -1,0 +1,370 @@
+---
+title: "Ecommerce Customers Data Analysis and Clustering"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Defining the Question
+### 1.1 Specifying the Question
+To be able to observe characteristics exhibited by different groups of Kira Plastinina customers.
+
+### 1.2 Defining the Metrics of Success
+To consider my analysis successful I should have been able to group customers that exhibit similar characteristics together and point out their observable characteristics. 
+
+### 1.3 Context
+The data was collected over an year by Sales and marketing team from the ecommerce website. It consists of 12330 records and 18 variables; 10 of which contain numerical data while the other eight contain categorical data.
+
+These variables include:
+
+  * Administrative - number of admin pages visited by customer
+  * Administrative duration - total time spent on pages
+  * Informational - number of info pages visited by customer
+  * Informational duration - total time spent on pages
+  * Product related - number of product pages visited by customer
+  * Product related duration - total time spent on pages
+  * Bounce rate - percentage of visitors that left the site without triggering any other requests from the site
+  * Exit rate - computed by last page/total pages visited. Higher exit rates indicate that the current page is likely to be the last and lower exit rates indicate the opposite.
+  * Page value - the average value for a web page that a user visited before completing an e-commerce transaction. 
+  * Special day - the closeness of the site visiting time to a specific special day i.e Valentine's day, in which the sessions are more likely to be finalized with the transaction.
+  * Month - month of the year
+  * Operating systems - the operating system used
+  * Browser - browser used to visit site
+  * Region - region where customer resides
+  * Traffic type - type of traffic
+  * Visitor type - either returning or new visitor
+  * Weekend - whether the day was a weekend or not
+  * Revenue - whether the customer made a purchase or not
+
+
+## Loading and Checking the data
+
+```{r loading libraries, include=FALSE}
+
+# loading relevant libraries
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(reshape)
+library(lubridate)
+library(cluster)
+library(fpc)
+library(caret)
+library(xgboost)
+library(cowplot)
+```
+
+```{r load data}
+
+# loading and previewing my data set
+shoppers <- read_csv("online_shoppers_intention.csv", show_col_types = FALSE)
+head(shoppers)
+```
+```{r bottom five}
+
+# checking the bottom of the data frame
+tail(shoppers)
+
+```
+```{r dimensions}
+
+# checking the number of columns and rows in my data frame
+dim(shoppers)
+
+```
+The data comprises of 12330 rows and 18 columns. 
+
+```{r data types}
+
+# displaying the column specifications for my data
+spec(shoppers)
+
+```
+
+A majority of the columns in the data frame are numeric while two have character data and two contain logical data.
+Traffic type, operating systems, browser and region are categorical variables that have been encoded.
+
+## Data cleaning
+```{r missing data}
+
+# checking for missing data
+colSums(is.na(shoppers))
+
+```
+There are 8 columns with 14 missing values each. It is highly likely the missing values occur in the same 14 records. As 14 is a small number relative to 12330, I will simply drop the records with missing values.
+
+```{r dropmiss}
+
+# dropping records with missing values
+Shoppers <- na.omit(shoppers)
+dim(Shoppers)
+```
+```{r duplicates}
+
+# checking for duplicated data
+Shoppers[duplicated(Shoppers), ]
+```
+117 rows of my data are said to be duplicated. They have a value of 0 for every column.They are to be removed from the data frame.
+
+```{r removing duplicates}
+
+# removing records with duplicated data
+
+Shoppers <- distinct(Shoppers)
+Shoppers[duplicated(Shoppers), ]
+```
+There are no more duplicates in my data.
+
+```{r factorise}
+
+# converting my encoded categorical variables to factors
+
+Shoppers$Region <- factor(Shoppers$Region)
+Shoppers$TrafficType <- factor(Shoppers$TrafficType)
+Shoppers$Browser <- factor(Shoppers$Browser)
+Shoppers$OperatingSystems <- factor(Shoppers$OperatingSystems)
+Shoppers$Month <- factor(Shoppers$Month)
+```
+
+```{r anomalies}
+
+# checking for anomalies in my categorical data and some numerical data columns
+
+unique(Shoppers$Weekend)
+unique(Shoppers$Month)
+unique(Shoppers$VisitorType)
+unique(Shoppers$Revenue)
+unique(Shoppers$TrafficType)
+unique(Shoppers$Region)
+unique(Shoppers$Browser)
+unique(Shoppers$OperatingSystems)
+range(Shoppers$BounceRates)
+range(Shoppers$ExitRates)
+```
+
+```{r outliers}
+
+# checking for outliers
+pages <- Shoppers[ ,c("Administrative","Informational")]
+durations <- Shoppers[ ,c("Administrative_Duration","Informational_Duration")]
+
+boxplot(pages, ylab ="number of pages")
+boxplot(durations, ylab ="time spent")
+boxplot(Shoppers$ProductRelated, ylab ="number of pages", xlab = "Product Related web pages")
+boxplot(Shoppers$ProductRelated_Duration, ylab ="time spent", xlab =" Time spent in product related web pages")
+```
+
+* There are quite a bit of outliers in the variables Administrative and Informational, so much so that I cannot get rid of the outliers.
+* The administrative web pages appear to have been visited more frequently in comparison to the informational web pages.
+* The administrative and informational duration also exhibit the presence of a lot of outliers. The time spent on administrative web pages also appears to be more.
+* The number of web pages visited that are product related are way higher than for both informational and administrative web pages. The presence of many outliers is also observed in this variable.
+* The time spent on product related web pages is also higher in comparison to time spent in both informational and administrative web pages. Many outliers are also present in this variable.
+
+
+## Exploratory data analysis
+### 4.1 Univariate Analysis
+
+```{r summary stats}
+
+# displaying the summary statistics for my quantitative variables
+quantitative <- Shoppers[ ,c("Administrative","Administrative_Duration","Informational","Informational_Duration"
+                             ,"ProductRelated","ProductRelated_Duration","BounceRates","ExitRates","PageValues","SpecialDay")]
+
+summary(quantitative)
+
+```
+
+```{r revenue}
+
+# plotting the number of people who made a purchase and those who did not
+revenue.table <- table(Shoppers$Revenue)
+barplot(revenue.table, col ="orange")
+
+```
+
+The number of visitors that did not make a purchase is significantly larger than those that did make a purchase from the site.
+
+```{r visitor types}
+
+# plotting the numbers of visitor types
+visitor.table <- table(Shoppers$VisitorType)
+barplot(visitor.table, col = "orange")
+
+```
+
+A majority of the visitors to the site had been to the site before.
+
+```{r month}
+
+# plotting the number of visitors for the different months
+month.table <- table(Shoppers$Month)
+barplot(month.table, col = "orange")
+```
+
+The months of May and November appear to have had the highest number of visitors that year followed by March and December respectively. The month that recorded the least number of visitors was February.
+
+```{r weekend}
+
+# plotting the number of visitors during the weekdays and weekends 
+week.table <- table(Shoppers$Weekend)
+barplot(week.table, col = "orange")
+```
+
+A majority of the visiting of the site occurred during weekdays.
+
+```{r function trial, fig.height=30, fig.width=30}
+
+# plotting the distributions for the quantitative variables.
+par(mfrow = c(5,2), cex = 1.6)
+
+i = 1
+for (x in quantitative){
+  hist(x, col ="orange", xlab = names(Shoppers)[i])
+  i <- i + 1
+}
+
+```
+
+* For the administrative variable, the data is skewed to the left with very low frequency for pages values above 10. Administrative duration data is skewed to the left as well with very low occurrences for values above 500. A majority of the distribution in the admin duration is below zero, which is peculiar as time spent usually doesn't have a negative value, this might mean the user left the page before it had loaded fully.
+
+* Informational variable has a majority of it's occurrences with values ranging between 0 and 3. A majority of the data in the informational duration column has a value of -1. The values past 200 have very low occurrences.
+
+* The product related variable has its data distribution heavily skewed to the left, with values greater than 100 with very low frequency. The time spent on the product related web pages is much higher than the other kinds of web pages, a majority lying between 0 and 500.
+
+* A majority of the users exhibited an exit rate between 0 and 5%. There is a gap in the distribution after the 10% mark with very low frequencies then a number of users with an exit rate of 20% is observed at the end.
+
+* The bounce rate distribution is heavily skewed to the left, with majority of the values ranging from 0 to 2%. A gap is observed after 10% with barely any occurrences and then a number of users exhibiting a bounce rate of 20% is observed at the end.
+
+* The page values data distribution is heavily skewed to the left with a majority with values ranging from 0 to 30 pages. 
+
+* Upon observing the special day data distribution, it is evident that a majority of the users visit the site when there is no proximity to a special day.
+
+### 4.2 Bi-variate Analysis
+
+```{r bvse }
+
+qplot(ExitRates,
+      BounceRates,
+      data = Shoppers,
+      main = "Plot of bounce rates against exit rates",
+      colour = "orange"
+      )
+
+```
+There appears to be a direct correlation between exit rates and bounce rates.
+
+```{r }
+
+# plotting the number of visitors that made a purchase each month
+
+visitor_month <- Shoppers[ , c("Month", "Revenue")]
+df <- data.frame(table(visitor_month))
+
+
+ggplot(data = df, aes(Month, Freq, fill = Revenue)) + geom_bar(position="stack", stat="identity") + scale_fill_manual(values=c("#EB5728","#009E74"))
+
+```
+November has the highest number of visitors that made a purchase from the website and February the least with barely any visitors making a purchase.
+
+### 4.3 Multivariate Analysis
+
+```{r correlation, fig.height=15, fig.width=15}
+
+# plotting the correlations of my variables
+
+correlations <- round(cor(quantitative), 2)
+
+# melting the correlations
+melted <- melt(correlations, na.rm=FALSE)
+
+# Plotting the correlation heat map
+ggplot(data = melted, aes(X1, X2, fill=value)) + geom_tile() +scale_fill_gradient2(low = "#0081A8", high = "orange", mid = "white", 
+   midpoint = 0, limit = c(-1,1)) + geom_text(aes(X1, X2, label = value), color = "black", size = 4) +theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+    size = 16, hjust = 1), axis.text.y = element_text(vjust = 1, size = 16, hjust = 1))+
+ coord_fixed()
+```
+
+The elements that exhibit high correlations to each other include:
+
+  * Bounce rates and exit rates
+  * ProductRelated and Productrelated_Duration
+  * Informational and Informational_Duration
+  * Administrative and Administrative_Duration
+
+```{r month-durations, fig.height=12, fig.width=12}
+
+# picking the month variable and the time spent on the different web pages 
+durations <- Shoppers[ , c("Month", "Administrative_Duration", "Informational_Duration", "ProductRelated_Duration")]
+
+# previewing the head
+head(durations)
+
+# obtaining the summations of time spent for the different months
+summer <- durations %>% group_by(Month) %>% summarise(across(everything(), sum))
+summer
+
+# plotting my bar graphs
+
+AD <- ggplot(summer, aes(x=Month, y=Administrative_Duration)) + geom_bar(stat = "identity", fill = "orange") + coord_flip()
+ID <- ggplot(summer, aes(x=Month, y=Informational_Duration)) + geom_bar(stat = "identity", fill = "red") + coord_flip()
+PRD <- ggplot(summer, aes(x=Month, y=ProductRelated_Duration)) + geom_bar(stat = "identity", fill = "black") + coord_flip()
+
+plot_grid(AD, ID, PRD, labels = "AUTO", label_size = 20)
+```
+* The durations spent for the different web pages appear to have fluctuated in th same way.
+
+## Implementing the solution
+
+The clustering method, I will put to use first will be Hierarchical clustering. As some of my quantitative variable exhibit presence of outliers, using this method the outliers will be easy to spot.
+
+```{r hclust- attempt one, fig.height=50 , fig.width=50}
+
+# Measuring distance for categorical variables
+categorical <- Shoppers[ , c("TrafficType", "OperatingSystems", "Browser", "Weekend", "Region", "Month", "Revenue")]
+is.factor(Shoppers$Month)
+cat_dist <- daisy(categorical, metric = c("gower"))
+
+
+# clustering
+cat_clust <- as.dendrogram(hclust(cat_dist, method = "complete")) 
+plot(cat_clust, cex = 2, xlab = "Height", horiz = TRUE)
+
+
+
+# scaling my quantitative variable data frame
+scaled <- scale(quantitative)
+
+# computing distance
+dq <- dist(scaled, method = "euclidean")
+
+# clustering
+clusters <- as.dendrogram(hclust(dq, method = "complete"))
+
+# plotting dendrogram
+plot(clusters, cex = 2, xlab = "Height", horiz= TRUE)
+
+
+```
+Hierarchical clustering is not the best when dealing with a large data set. As I made use of agglomeration method, my dendrogram appears very congested at the bottom and barely readable.
+
+## Challenging the solution
+
+The DBSCAN clustering might be a better algorithm to use as it is more robust in dealng with outliers and can handle large sets of data.
+
+```{r DBscan}
+
+# clustering using db scan
+
+library("dbscan")
+db_cluster <- dbscan(quantitative, eps = 30, minPts =50)
+print(db_cluster)
+
+# plotting the hull plot
+hullplot(quantitative, db_cluster$cluster)
+
+
+```
+
+The algorithm created 2 clusters of 5819 and 189 data points. 6191 were classified as noise.

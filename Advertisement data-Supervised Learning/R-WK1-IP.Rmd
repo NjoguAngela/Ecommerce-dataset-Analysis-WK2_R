@@ -1,0 +1,440 @@
+---
+title: "Advertisement Dataset Analysis_R-Week1_IP"
+author: "Angela Njogu"
+output:
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Specifying the question
+
+### 1.1 Defining the question
+
+The main objective of the project is to determine the target audience for ads for an online cryptography course.
+
+### 1.2 Defining the metrics of success
+
+To consider my analysis successful I should have been able to determine the characteristics of individuals most likely to click on the online cryptography advertisement.
+
+### 1.3 Context
+
+The data collected was obtained during the course of advertising a related course on the same blog the current advertisement is to be run.
+
+## Loading the data
+
+```{r load_data, echo=TRUE}
+#importing the library data.table
+
+library(readr)
+
+# loading of the dataset and previewing the first few rows
+
+my_dataset <- read_csv("advertising.csv", show_col_types = FALSE)
+head(my_dataset)
+
+```
+
+```{r checking the data}
+#previewing the dimensions of our data frame
+
+dim(my_dataset)
+
+```
+
+My data has 1000 rows and 10 columns.
+
+```{r}
+
+# previewing the tail of my data frame
+tail(my_dataset)
+
+```
+
+```{r }
+# previewing my column data types
+
+sapply(my_dataset, typeof)
+
+
+```
+
+## Data Cleaning
+
+```{r missing values }
+
+# checking for missing values
+
+colSums(is.na(my_dataset))
+```
+
+My data has no missing values.
+
+```{r duplicated data}
+
+# checking for duplicates
+
+my_dataset[duplicated(my_dataset), ]
+
+```
+
+There are no duplicates in my data frame.
+
+```{r coercion to timestamp data}
+
+# converting the time stamp column data to time stamp
+library(lubridate)
+my_dataset$Timestamp <- c(as_datetime(my_dataset$Timestamp))
+
+# creating a month variable containing the months the records were recorded
+my_dataset$month <- month(my_dataset$Timestamp)
+
+# creating a dayofweek variable containing the day of the week the record was taken in
+my_dataset$Day.of.week <- wday(my_dataset$Timestamp)
+
+# creating a day variable containing the day of the month the record was recorded
+my_dataset$day <- day(my_dataset$Timestamp)
+
+# creating an hour variable containing the hour of the day the record was collected
+my_dataset$hour <- hour(my_dataset$Timestamp)
+
+# creating a minute variable containing the minute in the hour the record was taken in
+my_dataset$minute <- minute(my_dataset$Timestamp)
+
+head(my_dataset[ , 10:15], 10)
+```
+
+The year variable was not extracted from the timestamp variable as all the records were taken in the year 2016.
+
+```{r anomalies}
+
+# checking for anomalies in the binary categorical data columns
+
+range(my_dataset$`Clicked on Ad`)
+range(my_dataset$Male)
+
+
+```
+
+No anomalies were detected in the binary categorical data variables.
+
+```{r area income outliers}
+
+# checking for outliers in the area income variable
+
+boxplot(my_dataset$`Area Income`)
+
+```
+
+Outliers are present towards the lower side of area income but it doesn't seem out of the ordinary.
+
+```{r outliers Daily Time Spent on site}
+
+# checking for outliers in the Daily time spent on site variable
+
+boxplot(my_dataset$`Daily Time Spent on Site`)
+
+
+```
+
+```{r outliers Daily Internet Usage}
+
+# checking for outliers in the daily internet usage variable
+
+boxplot(my_dataset$`Daily Internet Usage`)
+```
+
+There are no outliers for the daily internet usage and daily time spent on the internet variables.
+
+## Exploratory Data Analysis
+
+## Univariate Analysis
+
+```{r summary statistics}
+
+# displaying the summary statistics for the quantitative variables in my data frame
+
+quantitative <- my_dataset[ ,c("Daily Internet Usage","Daily Time Spent on Site","Area Income","Age")]
+summary(quantitative)
+
+```
+
+```{r clicked on ad}
+
+# displaying the counts for the number of people who clicked and didn't click the ads
+
+clicked.on.ads <- my_dataset$`Clicked on Ad`
+
+plotted_numbers <- table(clicked.on.ads)
+plotted_numbers
+```
+
+There is an equal number of people in the data frame for both categories; those who clicked and those who didn't click on the ad.
+
+### Bi variate Analysis
+
+```{r gender}
+
+# plotting the numbers by gender for those who clicked and those who didn't click on the ad
+by_gender <- my_dataset[ ,c("Male","Clicked on Ad")]
+
+barplot(table(by_gender), 
+        legend.text = TRUE,
+        xlab = "Clicked on ad",
+        ylab = "Counts",
+        col = c("#009E2D","#9E0000"),
+        )
+
+```
+
+The difference in numbers of males for those who clicked and did not click on ads is very small. Gender might not be a very good determinant.
+
+```{r Daily time spent on site}
+
+# displaying the distribution of the daily time spent on site data column
+
+# setting the parameter specifying that my vizs should appear in two rows, one for each class in the clicked on ad variable.
+par(mfrow = c(2,1))
+
+# plotting my histograms
+hist(my_dataset$`Daily Time Spent on Site`[my_dataset$`Clicked on Ad`==1],
+     col = '#009E2D',
+     breaks = 12,
+     xlab = "", 
+     main = "Distribution of times spent on blog site per day: clicked on ad")
+
+hist(my_dataset$`Daily Time Spent on Site`[my_dataset$`Clicked on Ad`==0],
+     col = '#9E0000',
+     breaks = 12,
+     xlab = "Daily time spent on site",
+     main = "Distribution of times spent on blog site per day: didn't click on ad")
+
+
+
+
+```
+
+For the individuals that clicked on the ad, the distribution indicates a majority spent around 40 to 60 minutes on the site. For the individuals that did not click the ad, the distribution indicates that a majority spent around 70 to 85 minutes on the site. This is way more than that of those that did click the ad.
+
+```{r Area Income}
+# displaying the area income distribution
+
+par(mfrow = c(2,1))
+hist(my_dataset$`Area Income`[my_dataset$`Clicked on Ad` == 1],
+     col = '#009E2D',
+     breaks = 12,
+     xlab = "",
+     main = "Area Income distribution: clicked on ad")
+
+hist(my_dataset$`Area Income`[my_dataset$`Clicked on Ad` == 0],
+     col = '#9E0000',
+     breaks = 12,
+     xlab = "Area Income",
+     main = "Area Income distribution: didn't click on ad")
+
+```
+
+The area income distribution for the those that clicked and didn't click the add is somewhat similar. The area income distribution for those that didn't click on the ad, however, have a relatively higher frequencies between 60000 to 70000.
+
+```{r age distribution by clicked on variable}
+# plotting the age distribution of the individuals in the data
+
+par(mfrow = c(2,1))
+hist(my_dataset$Age[my_dataset$`Clicked on Ad` == 1],
+     breaks = 12,
+     col = '#009E2D',
+     xlab = "",
+     main = "Age distribution: clicked on ad")
+
+hist(my_dataset$Age[my_dataset$`Clicked on Ad` == 0],
+     breaks = 12,
+     col = '#9E0000',
+     xlab = "Age",
+     main = "Age distribution: didn't click on ad")
+
+```
+
+The age distribution for the individuals that didn't click an ad appears to contain less individuals in their 50s and 60s.A majority of these individuals are in their late 20s and early 30s. The shapes of the two distributions is similar. A majority of individuals that clicked the ad are in their 40s and and late 30s.
+
+```{r Daily Internet Usage}
+
+# displaying the distribution of the daily time spent on site data column
+par(mfrow = c(2,1))
+hist(my_dataset$`Daily Internet Usage`[my_dataset$`Clicked on Ad`==1],
+     col = '#009E2D',
+     breaks = 12,
+     xlab = "", 
+     main = "Distribution of internet usage per day: clicked on ad")
+
+hist(my_dataset$`Daily Internet Usage`[my_dataset$`Clicked on Ad`==0],
+     col = '#9E0000',
+     breaks = 12,
+     xlab = "Daily internet usage",
+     main = "Distribution internet usage per day: didn't click on ad")
+
+
+
+
+```
+
+It is evident that the individuals that clicked on the ad used less internet per day in comparison to those that didn't click the ad.
+
+```{r top ten countries}
+
+library(dplyr)
+# displaying the top ten countries with highest number of people having clicked on the ad.
+
+countries <- my_dataset[, c('Country', "Clicked on Ad")]
+Countries = table(countries)
+Countries <- as.data.frame(Countries)
+
+
+clicked <- filter(Countries, Clicked.on.Ad==1)
+# ordering in terms of frequency 
+
+sorted_clicked <- arrange(clicked, desc(Freq)) 
+head(sorted_clicked, 10)
+
+
+```
+
+The country with the highest number of individuals having clicked on the ad was Australia with 7. The frequencies range from 7 to 0. The variation is not very large.
+
+```{r top twenty topics}
+
+# displaying the top twenty topics visited on the blog site
+
+topics <- my_dataset[, c('Ad Topic Line', "Clicked on Ad")]
+Topics <- table(topics)
+Topics <- as.data.frame(Topics)
+
+clicked_ad <- filter(Topics, Clicked.on.Ad == 1)
+
+# ordering in terms of frequency 
+
+sorted <- arrange(clicked_ad, desc(Freq))
+head(sorted, 20)
+
+```
+
+The topic with the highest frequency only had one visitor. All top twenty topics had a single visitor that clicked the ad.No significant inference could be obtained in relation to determining if an individual would click an ad or not.
+
+```{r months}
+library(ggplot2)
+m <- my_dataset[ , c("month", "Clicked on Ad")]
+month_table <- data.frame(table(m))
+
+ggplot(data = month_table, aes(x=month, y = Freq, fill = Clicked.on.Ad)) + geom_bar(position="stack", stat="identity") + scale_fill_manual(values=c("#9E0000","#009E2D"))
+```
+
+There is no significant difference in numbers across the months for the two classes; those who clicked and those who didn't click the ad.
+```{r }
+
+day.week <- my_dataset[ , c("Day.of.week","Clicked on Ad")]
+week_days <- data.frame(table(day.week))
+
+ggplot(data = week_days, aes(x=Day.of.week, y = Freq, fill = Clicked.on.Ad)) + geom_bar(position="stack", stat="identity") + scale_fill_manual(values=c("#9E0000","#009E2D"))
+
+
+```
+
+A similar case is exhibited for the days of the week as the months, no significant difference in numbers takes place across the different days of the week for either classes.
+
+```{r days}
+library(plyr)
+days_ <- my_dataset[ ,c("day", "Clicked on Ad")]
+
+days_df <- table(days_)
+days_df <- as.data.frame(days_df)
+
+
+ggplot(days_df, aes(x=day, y=Freq, color = Clicked.on.Ad, group= Clicked.on.Ad)) + geom_line()
+```
+
+The number of individuals that clicked on the ad peaked around the 3rd of the month, the numbers were least around the 2nd day of the month.
+```{r }
+
+# plotting the frequencies of individuals on the blog site during the different hours of the Day.
+
+hours <- my_dataset[ ,c("hour", "Clicked on Ad")]
+Hours <- table(hours)
+Hour <- as.data.frame(Hours)
+
+
+
+ggplot(Hour, aes(x=hour, y=Freq, color = Clicked.on.Ad, group= Clicked.on.Ad)) + geom_line()
+
+```
+Individuals that did click the ad appear to have majority of them on the site at around midnight and 0900hrs and the least number of people around 1000hrs, 1200hrs and 1600hrs.
+Individuals that didn't click on the ad appear to have a majority on the site at 7am and 8pm.
+
+### Multivariate Analysis
+
+```{r multivariate}
+library(ggplot2)
+
+qplot(`Daily Time Spent on Site`,
+      `Daily Internet Usage`, 
+      data = my_dataset, 
+      colour = `Clicked on Ad`,
+      xlab = "Time spent on site per day",
+      ylab = "Internet data usage per day", 
+      main = "Comparison between the data used and the time spent on the internet by Clicked on ad variable")
+```
+
+Data points exhibiting higher internet usage and time spent on the site per day are less likely to have clicked on the ad. The two classes of data points are distinctly separated.
+
+```{r correlations}
+# displaying the correlation coefficients for the variables in my data frame
+
+cor(my_dataset[ ,c("Daily Time Spent on Site", "Daily Internet Usage", "Age", "Male", "Area Income", "Clicked on Ad")])
+
+```
+
+The variable with the highest coefficient is Daily internet usage closely followed by Daily time spent on site.
+The gender coefficient is very low meaning the variable cannot be reliably used to determine whether an individual would click on an add or not. 
+The area income and age variable coefficients indicate that the variables can effect a change in the clicked.on.ad variable but not that much. The variables cannot be reliably used to determine whether an individual would click on an ad or not.
+
+
+## Implementing the solution
+
+```{r svm classification}
+
+# importing the caret library
+library(caret)
+
+# picking the variables that will be used to train my model.
+data_ <- my_dataset[ , c("Daily Time Spent on Site", "Daily Internet Usage", "Area Income", "Age", "Male", "month", "Day.of.week", "day", "hour", "minute", "Clicked on Ad")]
+
+# splitting my data into training and test sets
+splitting <- createDataPartition(y = my_dataset$`Clicked on Ad`, p= 0.7, list = FALSE)
+
+training <- data_[splitting, ]
+testing <- data_[splitting, ]
+
+
+training$`Clicked on Ad` <- factor(training$`Clicked on Ad`)
+
+# importing e1071 library
+library(e1071)
+
+# specifying the performing of cross validation for our training data
+controlled <- trainControl(method = "repeatedcv", number = 10, repeats = 4)
+
+# training my model
+svm_trained <- train(`Clicked on Ad` ~., data = training, method ="svmLinear", trControl = controlled, preProcess = c("center", "scale"))
+
+svm_trained
+
+# obtaining the predictions for the test data
+predictions <- predict(svm_trained, newdata = testing)
+
+# displaying my confusion matrix
+confusionMatrix(table(predictions, testing$`Clicked on Ad`))
+
+```
+
+My model performed really well with 99% of the individuals that did not click the ad being correctly classified and 96% of the individuals that did click the ad being correctly classified. My model attained an overall accuracy of 97%.
+The variables country, city and Ad topic line were not included in the training of the model as I felt they did not cause much variation in the target variable.
